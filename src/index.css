@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  :root.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-[#EEF3FA] text-slate-800 antialiased selection:bg-[#1769E0] selection:text-white;
+  }
+  .dark body {
+    @apply bg-slate-950 text-slate-100;
+  }
+}
+
+/* Reduced opacity mesh backgrounds for high-contrast legible text */
+.mesh-bg-light {
+  background-color: #EEF3FA;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(23, 105, 224, 0.08) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(15, 181, 160, 0.07) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(139, 92, 246, 0.06) 0px, transparent 50%);
+}
+
+.mesh-bg-dark {
+  background-color: #020617;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(23, 105, 224, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(15, 181, 160, 0.12) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(139, 92, 246, 0.10) 0px, transparent 50%);
+}

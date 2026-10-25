@@ -1,0 +1,273 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Admin verified by bootstrap runtime email, custom claim, or admins/{uid} document
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.admin == true) ||
+        (request.auth.token.email == 'pv966785@gmail.com' && request.auth.token.email_verified == true) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Test connection document for initial boot verification
+    match /test/{testId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Admins collection - full access for admin, read by signed-in users
+    match /admins/{adminId} {
+      allow read, write: if isAdmin();
+      allow read: if isSignedIn();
+    }
+
+    // Unique keys collection for duplicate prevention (create & read for signed in, full access for admin)
+    match /uniqueKeys/{keyId} {
+      allow read, write: if isAdmin();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // User profiles
+    match /users/{userId} {
+      // Admin has full access (read & write) for single documents and full collection list queries
+      allow read, write: if isAdmin();
+
+      // Signed-in users can get their own profile, or approved healthcare providers
+      allow get: if isSignedIn() && (
+        isOwner(userId) ||
+        (resource.data.status == 'Active' && resource.data.role in ['doctor', 'pharmacist', 'lab'])
+      );
+
+      // List rule constrained to queries filtered by role in ['doctor', 'pharmacist', 'lab'] and status == 'Active'
+      allow list: if isSignedIn() && (
+        isAdmin() ||
+        (
+          request.query.limit <= 100 &&
+          resource.data.status == 'Active' &&
+          resource.data.role in ['doctor', 'pharmacist', 'lab']
+        ) ||
+        resource.data.id == request.auth.uid
+      );
+
+      // User create validation
+      allow create: if isSignedIn() && isOwner(userId) && isValidId(userId) && (
+        (request.resource.data.role == 'patient' && request.resource.data.status == 'Active' && request.resource.data.walletBalance == 0) ||
+        (request.resource.data.role in ['doctor', 'pharmacist', 'lab'] && request.resource.data.status == 'Pending' &&
+          (!('rating' in request.resource.data) || request.resource.data.rating == 0) &&
+          (!('reviewCount' in request.resource.data) || request.resource.data.reviewCount == 0))
+      );
+
+      // User update validation: owner cannot change role, status, id, email, walletBalance, rating, reviewCount, rejectionReason, documents
+      allow update: if isSignedIn() && isOwner(userId) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'role', 'status', 'id', 'email', 'walletBalance', 'rating', 'reviewCount', 'rejectionReason', 'documents'
+        ]);
+
+      // Only admin can delete user profiles
+      allow delete: if isAdmin();
+    }
+
+    // Doctor Schedule Booked Slots
+    match /bookedSlots/{slotId} {
+      allow read, write: if isAdmin();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(slotId) &&
+        request.resource.data.patientId == request.auth.uid &&
+        !exists(/databases/$(database)/documents/bookedSlots/$(slotId));
+      allow delete: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid ||
+        resource.data.doctorId == request.auth.uid ||
+        isAdmin()
+      );
+      allow update: if false;
+    }
+
+    // Appointments & Teleconsultations
+    match /appointments/{appointmentId} {
+      allow read, write: if isAdmin();
+
+      allow get, list: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid ||
+        resource.data.doctorId == request.auth.uid
+      );
+
+      allow create: if isSignedIn() && isValidId(appointmentId) &&
+        request.resource.data.patientId == request.auth.uid &&
+        request.resource.data.status == 'Scheduled' &&
+        request.resource.data.fee is number &&
+        request.resource.data.fee > 0;
+
+      allow update: if isSignedIn() && (
+        // Patient can update only to cancel (status 'Cancelled') and never change fee, amount, prescription, reportUrl
+        (
+          resource.data.patientId == request.auth.uid &&
+          request.resource.data.status == 'Cancelled' &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fee', 'amount', 'prescription', 'reportUrl'])
+        ) ||
+        // Doctor can change status, prescription, and paymentStatus of their own appointments
+        (
+          resource.data.doctorId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'prescription', 'paymentStatus', 'paymentMethod', 'paymentReferenceId'])
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // Lab bookings & diagnostic tests
+    match /labBookings/{bookingId} {
+      allow read, write: if isAdmin();
+
+      allow get, list: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid ||
+        resource.data.assignedLabId == request.auth.uid
+      );
+
+      allow create: if isSignedIn() && isValidId(bookingId) &&
+        request.resource.data.patientId == request.auth.uid &&
+        request.resource.data.status == 'Confirmed' &&
+        request.resource.data.amount is number &&
+        request.resource.data.amount > 0;
+
+      allow update: if isSignedIn() && (
+        // Patient can update only to cancel (status 'Cancelled') and never change fee, amount, prescription, reportUrl
+        (
+          resource.data.patientId == request.auth.uid &&
+          request.resource.data.status == 'Cancelled' &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fee', 'amount', 'prescription', 'reportUrl'])
+        ) ||
+        // Lab can change status, assignedPhlebotomist, reportUrl, and paymentStatus of their own bookings
+        (
+          resource.data.assignedLabId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'assignedPhlebotomist', 'reportUrl', 'paymentStatus', 'paymentMethod', 'paymentReferenceId'])
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // Pharmacy medicine orders
+    match /pharmacyOrders/{orderId} {
+      allow read, write: if isAdmin();
+
+      allow get, list: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid ||
+        resource.data.pharmacyId == request.auth.uid
+      );
+
+      allow create: if isSignedIn() && isValidId(orderId) &&
+        request.resource.data.patientId == request.auth.uid &&
+        request.resource.data.status == 'Placed' &&
+        request.resource.data.totalAmount is number &&
+        request.resource.data.totalAmount > 0;
+
+      allow update: if isSignedIn() && (
+        // Patient can update only to cancel (status 'Cancelled') and never change fee, amount, prescription, reportUrl
+        (
+          resource.data.patientId == request.auth.uid &&
+          request.resource.data.status == 'Cancelled' &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['fee', 'amount', 'prescription', 'reportUrl'])
+        ) ||
+        // Pharmacist can change status, deliveryPartner, rejectionReason, and paymentStatus of their own orders
+        (
+          resource.data.pharmacyId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'deliveryPartner', 'rejectionReason', 'paymentStatus', 'paymentMethod', 'paymentReferenceId'])
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // Health records (prescriptions, lab reports, vaccinations)
+    match /healthRecords/{recordId} {
+      allow read, write: if isAdmin();
+
+      allow get, list: if isSignedIn() && (
+        resource.data.patientId == request.auth.uid ||
+        resource.data.doctorId == request.auth.uid ||
+        resource.data.labId == request.auth.uid
+      );
+      allow create: if isSignedIn() && isValidId(recordId);
+      allow update, delete: if isAdmin();
+    }
+
+    // Pharmacy inventory management
+    match /pharmacyInventory/{itemId} {
+      allow read, write: if isAdmin();
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && (
+        isAdmin() ||
+        (request.resource.data.pharmacyId == request.auth.uid) ||
+        (resource.data.pharmacyId == request.auth.uid)
+      );
+    }
+
+    // Immutable system and audit logs
+    match /auditLogs/{logId} {
+      allow read, write: if isAdmin();
+      allow create: if isSignedIn() && isValidId(logId);
+      allow update, delete: if false;
+    }
+
+    // Support tickets
+    match /supportTickets/{ticketId} {
+      allow read, write: if isAdmin();
+
+      allow get, list: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.userId == request.auth.uid
+      );
+      allow create: if isSignedIn() && isValidId(ticketId);
+      allow update: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow read, write: if isAdmin();
+
+      // Signed-in user reads their own notifications
+      allow get, list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid
+      );
+
+      // Any signed-in user can create a notification if userId is a valid string
+      allow create: if isSignedIn() && isValidId(notificationId) &&
+        request.resource.data.userId is string &&
+        request.resource.data.userId.size() > 0 &&
+        request.resource.data.userId.size() <= 128;
+
+      // Signed-in user updates only the read field of their own notifications
+      allow update: if isSignedIn() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      // Delete allowed for owner or admin
+      allow delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+  }
+}

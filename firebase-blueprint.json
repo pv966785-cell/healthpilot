@@ -1,0 +1,118 @@
+{
+  "entities": {
+    "PatientProfile": {
+      "title": "Patient",
+      "description": "Patient user profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["patient"] },
+        "status": { "type": "string" },
+        "address": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role", "status"]
+    },
+    "DoctorProfile": {
+      "title": "Doctor",
+      "description": "Doctor user profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["doctor"] },
+        "status": { "type": "string" },
+        "specialty": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role", "status"]
+    },
+    "LabProfile": {
+      "title": "Lab",
+      "description": "Lab user profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["lab"] },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name", "role", "status"]
+    },
+    "PharmacistProfile": {
+      "title": "Pharmacist",
+      "description": "Pharmacist user profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["pharmacist"] },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "name", "role", "status"]
+    },
+    "AdminProfile": {
+      "title": "Admin",
+      "description": "Admin user profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["super_admin", "sub_admin"] }
+      },
+      "required": ["id", "name", "role"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Doctor appointment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "patientId": { "type": "string" },
+        "doctorId": { "type": "string" }
+      },
+      "required": ["id", "patientId", "doctorId"]
+    },
+    "LabBooking": {
+      "title": "LabBooking",
+      "description": "Lab booking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "patientId": { "type": "string" },
+        "assignedLabId": { "type": "string" }
+      },
+      "required": ["id", "patientId", "assignedLabId"]
+    },
+    "PharmacyOrder": {
+      "title": "PharmacyOrder",
+      "description": "Pharmacy order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "patientId": { "type": "string" },
+        "pharmacyId": { "type": "string" }
+      },
+      "required": ["id", "patientId", "pharmacyId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "PatientProfile",
+      "description": "User profiles"
+    },
+    "/appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Doctor appointments"
+    },
+    "/labBookings/{labBookingId}": {
+      "schema": "LabBooking",
+      "description": "Lab bookings"
+    },
+    "/pharmacyOrders/{orderId}": {
+      "schema": "PharmacyOrder",
+      "description": "Pharmacy orders"
+    }
+  }
+}
