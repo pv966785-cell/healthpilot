@@ -29,6 +29,7 @@ import { sendAppNotification } from '../services/notifications';
 import { NotificationBell } from './NotificationBell';
 import { ListSkeleton } from './LoadingSkeleton';
 import { useT } from '../i18n';
+import { SymptomCheckerModal } from './patient/SymptomCheckerModal';
 
 interface PatientAppProps {
   isLargeFont: boolean;
@@ -242,12 +243,46 @@ export const PatientApp: React.FC<PatientAppProps> = ({
 
   // Modals & Flows
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+  const [showSymptomChecker, setShowSymptomChecker] = useState(false);
   const [selectedTestForBooking, setSelectedTestForBooking] = useState<LabTest | null>(null);
   const [selectedDoctorForBooking, setSelectedDoctorForBooking] = useState<DoctorProfile | null>(null);
   const [doctorDateOffset, setDoctorDateOffset] = useState<number>(0);
   const [doctorConsultMode, setDoctorConsultMode] = useState<'Video' | 'Clinic visit'>('Video');
   const [selectedDoctorSlot, setSelectedDoctorSlot] = useState<ComputedSlot | null>(null);
   const [doctorPaymentMethod, setDoctorPaymentMethod] = useState<'Pay at Clinic'>('Pay at Clinic');
+
+  const handleSelectSpecialtyFromChecker = (specialty: string) => {
+    setActiveTab('consultation');
+    const lower = specialty.toLowerCase();
+    if (lower.includes('cardio')) {
+      setSelectedSpecialty('Cardiologist');
+    } else if (lower.includes('gyn') || lower.includes('women')) {
+      setSelectedSpecialty('Gynaecologist');
+    } else if (lower.includes('diabet') || lower.includes('endocrin')) {
+      setSelectedSpecialty('Diabetologist');
+    } else if (lower.includes('physician') || lower.includes('general')) {
+      setSelectedSpecialty('General Physician');
+    } else {
+      setSelectedSpecialty('All');
+      setSearchQuery(specialty);
+    }
+    showToast(`Showing doctors for ${specialty}`);
+  };
+
+  const handleSelectLabTestFromChecker = (testName: string) => {
+    const lower = testName.toLowerCase();
+    const matched = labTests.find(t => 
+      t.name.toLowerCase().includes(lower) || lower.includes(t.name.toLowerCase())
+    );
+    if (matched) {
+      setSelectedTestForBooking(matched);
+      showToast(`Selected ${matched.name} for booking`);
+    } else {
+      setActiveTab('tests');
+      setTestSearchQuery(testName);
+      showToast(`Showing search results for ${testName}`);
+    }
+  };
 
   // Lab Booking flow
   const [labPaymentMethod, setLabPaymentMethod] = useState<'Pay at Lab / Sample Collection'>('Pay at Lab / Sample Collection');
@@ -752,17 +787,31 @@ export const PatientApp: React.FC<PatientAppProps> = ({
         <div className="flex items-center gap-2">
           <HealthPilotLogo size="sm" />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* AI Symptom Checker quick pill */}
+          <button
+            onClick={() => setShowSymptomChecker(true)}
+            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1 shadow-xs cursor-pointer ${
+              isDarkMode 
+                ? 'bg-blue-950/50 border-blue-600/40 text-blue-300 hover:bg-blue-900/60' 
+                : 'bg-blue-50 border-blue-200 text-[#1769E0] hover:bg-blue-100/70'
+            }`}
+            title="AI Symptom Checker"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin-slow" />
+            <span className="text-[11px] font-extrabold">AI Triage</span>
+          </button>
+
           {/* In-App Notifications Bell */}
           <NotificationBell isDarkMode={isDarkMode} />
 
           <button 
             onClick={onToggleLanguage}
-            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold border transition-colors flex items-center gap-1 shadow-xs cursor-pointer ${
+            className={`px-2 py-1.5 rounded-xl text-xs font-bold border transition-colors flex items-center gap-1 shadow-xs cursor-pointer ${
               isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700' : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-50'
             }`}
           >
-            <Globe className="w-3.5 h-3.5 text-[#1769E0]" /> {language === 'en' ? '🇮🇳 हिंदी' : 'English'}
+            <Globe className="w-3.5 h-3.5 text-[#1769E0]" /> {language === 'en' ? '🇮🇳' : 'EN'}
           </button>
           <button 
             onClick={onToggleDarkMode}
@@ -775,7 +824,7 @@ export const PatientApp: React.FC<PatientAppProps> = ({
           </button>
           <button 
             onClick={() => setShowEmergencyModal(true)}
-            className="px-3 py-1.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-1 shadow-md shadow-red-500/25 animate-pulse cursor-pointer"
+            className="px-2.5 py-1.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-1 shadow-md shadow-red-500/25 animate-pulse cursor-pointer"
           >
             <ShieldAlert className="w-3.5 h-3.5" /> SOS
           </button>
@@ -836,6 +885,31 @@ export const PatientApp: React.FC<PatientAppProps> = ({
                 onChange={e => setSearchQuery(e.target.value)}
                 className={`w-full ${isDarkMode ? 'bg-slate-850 text-white border-slate-700/80' : 'bg-white text-slate-900 border-slate-300'} pl-10 pr-4 py-3.5 rounded-2xl border text-sm font-semibold focus:outline-none focus:border-[#1769E0] focus:ring-2 focus:ring-[#1769E0]/20 shadow-sm transition-all`}
               />
+            </div>
+
+            {/* AI Symptom Navigator Card */}
+            <div 
+              onClick={() => setShowSymptomChecker(true)}
+              className="relative overflow-hidden rounded-3xl p-4.5 bg-gradient-to-r from-indigo-700 via-blue-600 to-teal-600 text-white shadow-xl shadow-blue-500/20 cursor-pointer hover:scale-[1.015] active:scale-[0.985] transition-all border border-white/20"
+            >
+              <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full bg-white/10 blur-xl pointer-events-none" />
+              <div className="relative z-10 flex items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider bg-white/20 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/25 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-amber-300" /> AI Symptom Checker
+                    </span>
+                    <span className="text-[10px] font-bold text-teal-200">Instant Triage</span>
+                  </div>
+                  <h3 className="font-extrabold text-base tracking-tight">Feeling unwell? Check symptoms</h3>
+                  <p className="text-xs text-blue-100 font-medium leading-relaxed">
+                    AI analyzes your symptoms & recommends doctor specialties and lab tests
+                  </p>
+                </div>
+                <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0 border border-white/30 shadow-inner">
+                  <Sparkles className="w-6 h-6 text-amber-300" />
+                </div>
+              </div>
             </div>
 
             {/* 3 Big Gradient Cards */}
@@ -1121,7 +1195,17 @@ export const PatientApp: React.FC<PatientAppProps> = ({
         {/* 2. DOCTOR CONSULTATION TAB */}
         {activeTab === 'consultation' && (
           <div className="p-4 space-y-4">
-            <h2 className="font-extrabold text-base text-[#0A1A45] dark:text-white">Consult Expert Doctors</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="font-extrabold text-base text-[#0A1A45] dark:text-white">Consult Expert Doctors</h2>
+              <button
+                type="button"
+                onClick={() => setShowSymptomChecker(true)}
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-sm shadow-blue-500/20 active:scale-95 transition-all cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>AI Symptom Checker</span>
+              </button>
+            </div>
 
             {/* Specialty Filter Chips */}
             <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
@@ -2975,6 +3059,18 @@ export const PatientApp: React.FC<PatientAppProps> = ({
           </div>
         </div>
       )}
+
+      {/* AI Symptom Checker Modal */}
+      <SymptomCheckerModal
+        isOpen={showSymptomChecker}
+        onClose={() => setShowSymptomChecker(false)}
+        isDarkMode={isDarkMode}
+        language={language}
+        onSelectSpecialty={handleSelectSpecialtyFromChecker}
+        onSelectLabTest={handleSelectLabTestFromChecker}
+        patientAge={currentUser?.role === 'patient' ? (currentUser as PatientProfile).age : undefined}
+        patientGender={currentUser?.role === 'patient' ? (currentUser as PatientProfile).gender : undefined}
+      />
 
       {/* Bottom Navigation Bar (5 Tabs) */}
       <nav className={`fixed md:absolute bottom-0 left-0 right-0 md:max-w-[480px] md:mx-auto glass-header px-2 pt-2 pb-[max(0.6rem,env(safe-area-inset-bottom,0px))] flex items-center justify-around z-30 shadow-2xl rounded-t-3xl border-t border-slate-300 dark:border-slate-800`}>

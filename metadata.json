@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "HealthPilot",
+  "description": "Unified digital healthcare platform connecting patients, verified doctors, NABL-accredited diagnostic labs, and licensed pharmacies for seamless teleconsultation, lab bookings, and medicine orders.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
