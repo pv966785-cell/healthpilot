@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { HealthPilotLogo } from './HealthPilotLogo';
 import { InstallAppButton } from './InstallAppButton';
 import { FounderAvatar } from './FounderAvatar';
-import { founderDetails } from '../mockData';
+import { founderDetails } from '@/src/mockData';
 import { 
   Stethoscope, Activity, ShoppingBag, ArrowRight, ShieldCheck, 
   CheckCircle2, Users, FileText, Truck, CreditCard, Phone, Mail, 

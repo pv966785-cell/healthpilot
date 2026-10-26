@@ -4,7 +4,7 @@ import { HealthPilotLogo } from './HealthPilotLogo';
 import { LabProfile, LabBooking } from '../types';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { uploadFile } from '../utils/upload';
+import { uploadFile } from '@/src/utils/upload';
 import { 
   Activity, CheckCircle2, Clock, Upload, User, 
   MapPin, LogOut, ArrowRight, ShieldCheck, FileText, Check, AlertCircle, Loader2, FlaskConical, X 

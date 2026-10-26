@@ -7,7 +7,7 @@ import {
 } from '../types';
 import { SAMPLE_LAB_TESTS, PRICE_MARKUP_PERCENT } from '../content';
 import { auth, db, googleProvider, handleFirestoreError, OperationType, logFirestoreError } from '../firebase';
-import { uploadFile } from '../utils/upload';
+import { uploadFile } from '@/src/utils/upload';
 import { 
   onAuthStateChanged, signInWithPopup, signInWithRedirect, 
   signInWithEmailAndPassword, createUserWithEmailAndPassword, 
